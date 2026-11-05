@@ -18,6 +18,9 @@ INGRESS_NGINX=https://raw.githubusercontent.com/kubernetes/ingress-nginx/control
 
 if [ "$(id -u)" -eq 0 ]; then SUDO=""; else SUDO="sudo"; fi
 
+# k3s's kubectl reads the root-only /etc/rancher/k3s/k3s.yaml unless KUBECONFIG is set
+if [ -z "${KUBECONFIG:-}" ] && [ -f "$HOME/.kube/config" ]; then export KUBECONFIG="$HOME/.kube/config"; fi
+
 step() { echo; echo ">>> $*"; }
 need_root() {
   if [ "$(id -u)" -ne 0 ]; then echo "run this with sudo: sudo bash $0 $*"; exit 1; fi
@@ -60,6 +63,8 @@ server() {
   cp /etc/rancher/k3s/k3s.yaml "$home/.kube/config"
   chown -R "$user": "$home/.kube"
   chmod 600 "$home/.kube/config"
+  grep -q 'KUBECONFIG=' "$home/.bashrc" 2>/dev/null \
+    || echo 'export KUBECONFIG=$HOME/.kube/config' >> "$home/.bashrc"
 
   export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
   step "Waiting for the node to be Ready"
