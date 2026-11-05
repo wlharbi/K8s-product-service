@@ -68,8 +68,8 @@ server() {
 
   step "Installing ingress-nginx (lab Part 2)"
   "$KUBECTL" apply -f "$INGRESS_NGINX"
-  "$KUBECTL" wait -n ingress-nginx --for=condition=ready pod \
-    --selector=app.kubernetes.io/component=controller --timeout=300s
+  # rollout status waits for the pod to exist; `kubectl wait` fails if run before it is created
+  "$KUBECTL" -n ingress-nginx rollout status deploy/ingress-nginx-controller --timeout=300s
 
   echo
   echo "Server ready. Next: bash $0 join USER@WORKER1_IP USER@WORKER2_IP"
