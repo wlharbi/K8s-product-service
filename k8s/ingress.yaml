@@ -1,0 +1,19 @@
+# Requires an ingress controller (e.g. ingress-nginx).
+# For TLS add a `tls:` block and a cert-manager issuer annotation.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: product-service
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: product-service.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: product-service
+                port:
+                  name: http

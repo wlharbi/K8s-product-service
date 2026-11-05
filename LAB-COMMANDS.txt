@@ -1,0 +1,59 @@
+# ==== Run everything on master (CentOS9-01, 172.25.231.34) as student ====
+
+# --- 1. Check sudo and reach the workers ---
+sudo -v
+ssh student@172.25.231.42 hostname
+ssh student@172.25.231.84 hostname
+
+# --- 2. Download the project from GitHub (replace YOUR-USER) ---
+curl -L -o ps.tgz https://github.com/YOUR-USER/product-service/archive/refs/heads/main.tar.gz
+file ps.tgz
+mkdir -p ~/product-service
+tar xzf ps.tgz -C ~/product-service --strip-components=1
+cd ~/product-service
+
+# --- 3. Install k3s on master ---
+sudo bash scripts/lab-setup.sh server
+
+# --- 4. Join node1 and node2 ---
+bash scripts/lab-setup.sh join student@172.25.231.42 student@172.25.231.84
+kubectl get nodes -o wide
+
+# --- 5. Run the tests ---
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+python -m pytest -v
+deactivate
+
+# --- 6. Build the image and load it on all nodes ---
+bash scripts/lab-setup.sh image
+
+# --- 7. Read what will be deployed (q to quit) ---
+kubectl kustomize k8s | less
+
+# --- 8. Set a real DB password and deploy ---
+PW=$(openssl rand -hex 16)
+sed -i "s/change-me-please/$PW/g" k8s/secret.yaml
+make k8s-deploy
+kubectl -n product-service get pods -o wide
+kubectl -n product-service get all,pvc,ingress,hpa,pdb,networkpolicy
+kubectl -n product-service logs job/product-service-migrate
+
+# --- 9. Test the service ---
+kubectl -n product-service port-forward svc/product-service 8080:80 >/dev/null 2>&1 &
+curl localhost:8080/health/ready
+make smoke URL=http://localhost:8080
+kill %1
+
+# --- 10. Debugging (when something is stuck) ---
+kubectl -n product-service get pods
+kubectl -n product-service describe pod POD_NAME
+kubectl -n product-service logs POD_NAME
+
+# --- Experiment 7.3: make version 1.0.1 (replaces docker tag + kind load) ---
+bash scripts/lab-setup.sh image 1.0.1
+
+# --- Cleanup ---
+make k8s-delete
+kubectl delete pvc -n product-service --all
